@@ -24,44 +24,38 @@ const ChatInterface = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
-  
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { saveQuestion } = useQuestionStorage();
-  const { toast } = useToast();
 
-   const handleSendMessage = async (messageText: string) => {
-  const newMessage: Message = {
+  
+ const handleSendMessage = async (messageText: string) => {
+  const userMessage: Message = {
     id: Date.now().toString(),
     text: messageText,
     isUser: true,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };
-      setMessages(prev => [...prev, newMessage]);Add commentMore actions
 
-  const aiText = await fetchAIResponse(messageText);
+  setMessages(prev => [...prev, userMessage]);
 
-  const aiResponse: Message = {
-    id: (Date.now() + 1).toString(),
-    text: aiText,
-    isUser: false,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  };
+  try {
+    const res = await fetch("http://localhost:8000/api/chat/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: messageText })
+    });
 
-  setMessages(prev => [...prev, aiResponse]);
-};
+    const data = await res.json();
 
-  setMessages(prev => [...prev, newMessage]);
+    const aiResponse: Message = {
+      id: (Date.now() + 1).toString(),
+      text: data.reply,
+      isUser: false,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
 
-  const aiText = await fetchAIResponse(messageText);
-
-  const aiResponse: Message = {
-    id: (Date.now() + 1).toString(),
-    text: aiText,
-    isUser: false,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  };
-
-  setMessages(prev => [...prev, aiResponse]);
+    setMessages(prev => [...prev, aiResponse]);
+  } catch (error) {
+    console.error("Error:", error);
+  }
 };
     
     // Simulate AI response
