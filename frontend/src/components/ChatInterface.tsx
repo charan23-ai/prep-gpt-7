@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
@@ -24,64 +23,45 @@ const ChatInterface = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
-  
+
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { saveQuestion } = useQuestionStorage();
   const { toast } = useToast();
 
-   const handleSendMessage = async (messageText: string) => {
-  const newMessage: Message = {
-    id: Date.now().toString(),
-    text: messageText,
-    isUser: true,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  };
-      setMessages(prev => [...prev, newMessage]);Add commentMore actions
-
-  const aiText = await fetchAIResponse(messageText);
-
-  const aiResponse: Message = {
-    id: (Date.now() + 1).toString(),
-    text: aiText,
-    isUser: false,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const fetchAIResponse = async (userInput: string): Promise<string> => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/chatbot/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userInput }),
+      });
+      const data = await response.json();
+      return data.response;
+    } catch (error) {
+      console.error("Error fetching AI response:", error);
+      return "Oops! Something went wrong. Please try again later.";
+    }
   };
 
-  setMessages(prev => [...prev, aiResponse]);
-};
+  const handleSendMessage = async (messageText: string) => {
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: messageText,
+      isUser: true,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setMessages(prev => [...prev, newMessage]);
 
-  setMessages(prev => [...prev, newMessage]);
+    const aiText = await fetchAIResponse(messageText);
 
-  const aiText = await fetchAIResponse(messageText);
-
-  const aiResponse: Message = {
-    id: (Date.now() + 1).toString(),
-    text: aiText,
-    isUser: false,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const aiResponse: Message = {
+      id: (Date.now() + 1).toString(),
+      text: aiText,
+      isUser: false,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    setMessages(prev => [...prev, aiResponse]);
   };
-
-  setMessages(prev => [...prev, aiResponse]);
-};
-    
-    // Simulate AI response
-     const fetchAIResponse = async (userInput: string): Promise<string> => {
-  try {
-    const response = await fetch('http://127.0.0.1:8000/api/chatbot/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ message: userInput }),
-    });
-
-    const data = await response.json();
-    return data.response;
-  } catch (error) {
-    console.error("Error fetching AI response:", error);
-    return "Oops! Something went wrong. Please try again later.";
-  }
-};
 
   const handleSaveQuestion = (questionId: string) => {
     const messageIndex = messages.findIndex(m => m.id === questionId);
@@ -89,7 +69,7 @@ const ChatInterface = () => {
       const question = messages[messageIndex].text;
       const answerIndex = messageIndex + 1;
       const answer = answerIndex < messages.length ? messages[answerIndex].text : '';
-      
+
       saveQuestion(question, answer);
       toast({
         title: "Question Saved",
@@ -135,7 +115,7 @@ const ChatInterface = () => {
       {/* Chat Messages */}
       <ScrollArea className="flex-1 p-6" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {messages.map((message, index) => (
+          {messages.map((message) => (
             <div key={message.id} className="relative group">
               <MessageBubble
                 message={message.text}
