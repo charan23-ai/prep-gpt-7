@@ -36,7 +36,7 @@ const ChatInterface = () => {
     isUser: true,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   };
-      setMessages(prev => [...prev, newMessage]);Add commentMore actions
+      setMessages(prev => [...prev, newMessage]);//Add commentMore actions
 
   const aiText = await fetchAIResponse(messageText);
 
