@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+ import React, { useState, useRef, useEffect } from 'react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -7,6 +6,11 @@ import { BookOpen, Target, Lightbulb, Clock, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuestionStorage } from '../hooks/useQuestionStorage';
 import { useToast } from "@/hooks/use-toast";
+import PrivacyConsentModal from './PrivacyConsentModal';
+import PrivacySettingsPanel from './PrivacySettingsPanel';
+import { usePrivacyCompliance } from '../hooks/usePrivacyCompliance';
+import { useWellnessMonitoring } from '../hooks/useWellnessMonitoring';
+import { Settings } from "lucide-react";
 
 interface Message {
   id: string;
@@ -24,58 +28,54 @@ const ChatInterface = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
-
   
- const handleSendMessage = async (messageText: string) => {
-  const userMessage: Message = {
-    id: Date.now().toString(),
-    text: messageText,
-    isUser: true,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  };
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { saveQuestion, clearAllQuestions } = useQuestionStorage();
+  const { toast } = useToast();
+  const [showPrivacySettings, setShowPrivacySettings] = useState(false);
+  const { privacySettings, showConsentModal, updateConsent, revokeConsent, setShowConsentModal } = usePrivacyCompliance();
+  const { wellnessState, resetSession } = useWellnessMonitoring();
 
-  setMessages(prev => [...prev, userMessage]);
+  const handleSendMessage = (messageText: string) => {
+    // Check if user has given consent before processing
+    if (!privacySettings.dataProcessingConsent) {
+      setShowConsentModal(true);
+      return;
+    }
 
-  try {
-    const res = await fetch("http://localhost:8000/api/chat/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: messageText })
-    });
-
-    const data = await res.json();
-
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: messageText,
+      isUser: true,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    setMessages(prev => [...prev, newMessage]);
+    
+    // Simulate AI response
+     
+fetch("http://127.0.0.1:8000/api/chat/", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ message: messageText }),
+})
+  .then((res) => res.json())
+  .then((data) => {
     const aiResponse: Message = {
-      id: (Date.now() + 1).toString(),
-      text: data.reply,
+      id: Date.now().toString(),
+      text: data.reply || "Sorry, I couldn't generate a response.",
       isUser: false,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
+    setMessages((prev) => [...prev, aiResponse]);
+  })
+  .catch((err) => {
+    console.error("API error:", err);
+  });
 
-    setMessages(prev => [...prev, aiResponse]);
-  } catch (error) {
-    console.error("Error:", error);
-  }
-};
-    
-    // Simulate AI response
-     const fetchAIResponse = async (userInput: string): Promise<string> => {
-  try {
-    const response = await fetch('http://127.0.0.1:8000/api/chatbot/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ message: userInput }),
-    });
 
-    const data = await response.json();
-    return data.response;
-  } catch (error) {
-    console.error("Error fetching AI response:", error);
-    return "Oops! Something went wrong. Please try again later.";
-  }
-};
 
   const handleSaveQuestion = (questionId: string) => {
     const messageIndex = messages.findIndex(m => m.id === questionId);
@@ -92,37 +92,91 @@ const ChatInterface = () => {
     }
   };
 
+  const handleDeleteData = () => {
+    clearAllQuestions();
+    localStorage.removeItem('privacy-consent');
+    localStorage.removeItem('wellness-state');
+    localStorage.removeItem('wellness-date');
+    setMessages([{
+      id: '1',
+      text: "Welcome to PrepGPT! I'm your AI study companion. How can I help you study today?",
+      isUser: false,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+    setShowPrivacySettings(false);
+  };
+
+  const handleRevokeConsent = () => {
+    revokeConsent();
+    handleDeleteData();
+  };
+
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
   }, [messages]);
 
+  if (showPrivacySettings) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="mb-4">
+          <Button
+            onClick={() => setShowPrivacySettings(false)}
+            variant="outline"
+          >
+            ← Back to Chat
+          </Button>
+        </div>
+        <PrivacySettingsPanel
+          onRevokeConsent={handleRevokeConsent}
+          onDeleteData={handleDeleteData}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col max-h-screen">
+      <PrivacyConsentModal
+        isOpen={showConsentModal}
+        onConsent={updateConsent}
+      />
+      
       {/* Features Banner */}
-      <div className="p-4 bg-gradient-to-r from-blue-50/80 to-blue-100/80 backdrop-blur-sm border-b border-blue-200/30">
-        <div className="flex flex-wrap justify-center gap-6 text-sm">
-          <div className="flex items-center space-x-2 text-blue-700">
-            <BookOpen className="w-4 h-4" />
-            <span>Study Help</span>
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
+        <div className="flex flex-wrap justify-between items-center gap-4 text-sm">
+          <div className="flex flex-wrap gap-6">
+            <div className="flex items-center space-x-2 text-blue-700">
+              <BookOpen className="w-4 h-4" />
+              <span>Study Help</span>
+            </div>
+            <div className="flex items-center space-x-2 text-blue-700">
+              <Target className="w-4 h-4" />
+              <span>Test Prep</span>
+            </div>
+            <div className="flex items-center space-x-2 text-blue-700">
+              <Lightbulb className="w-4 h-4" />
+              <span>Concept Explanation</span>
+            </div>
+            <div className="flex items-center space-x-2 text-blue-700">
+              <Clock className="w-4 h-4" />
+              <span>Study Planning</span>
+            </div>
+            <div className="flex items-center space-x-2 text-blue-700">
+              <Save className="w-4 h-4" />
+              <span>Question Storage</span>
+            </div>
           </div>
-          <div className="flex items-center space-x-2 text-blue-700">
-            <Target className="w-4 h-4" />
-            <span>Test Prep</span>
-          </div>
-          <div className="flex items-center space-x-2 text-blue-700">
-            <Lightbulb className="w-4 h-4" />
-            <span>Concept Explanation</span>
-          </div>
-          <div className="flex items-center space-x-2 text-blue-700">
-            <Clock className="w-4 h-4" />
-            <span>Study Planning</span>
-          </div>
-          <div className="flex items-center space-x-2 text-blue-700">
-            <Save className="w-4 h-4" />
-            <span>Question Storage</span>
-          </div>
+          <Button
+            onClick={() => setShowPrivacySettings(true)}
+            variant="outline"
+            size="sm"
+            className="flex items-center space-x-2"
+          >
+            <Settings className="w-4 h-4" />
+            <span>Privacy Settings</span>
+          </Button>
         </div>
       </div>
 
@@ -157,4 +211,4 @@ const ChatInterface = () => {
   );
 };
 
-export default ChatInterface;
+export default ChatInterface
